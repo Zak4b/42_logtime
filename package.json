@@ -1,0 +1,15 @@
+{
+	"name": "42_logtime",
+	"version": "1.0.0",
+	"type": "module",
+	"main": "main.js",
+	"scripts": {
+		"start": "node src/main.js"
+	},
+	"author": "",
+	"license": "ISC",
+	"description": "",
+	"dependencies": {
+		"dotenv": "^16.4.5"
+	}
+}
