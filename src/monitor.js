@@ -1,22 +1,27 @@
 import { EventEmitter } from "events";
 import { getAccessToken } from "./auth.js";
 import { getLocationsToday } from "./api.js";
-import { calculateTotalSeconds } from "./utils.js";
+import { calculateTotalSeconds, formatDuration } from "./utils.js";
 
 export class SessionMonitor extends EventEmitter {
 	constructor(login) {
 		super();
 		this.login = login;
-		this._sessions = [];
+		this._sessions = {
+			sessions: [],
+			totalLogtime: "00h 00m 00s",
+			totalSeconds: 0,
+			lastCheckTime: null,
+		};
 		this._lastCheckTime = null;
 		this._refreshInterval = null;
 		this._isRunning = false;
 		this._warning = false;
 	}
 
-	// Getter pour accéder aux sessions
+	// Getter pour accéder aux sessions (retourne juste le tableau pour compatibilité)
 	get sessions() {
-		return this._sessions;
+		return this._sessions.sessions;
 	}
 
 	// Getter pour accéder à la dernière vérification
@@ -64,16 +69,40 @@ export class SessionMonitor extends EventEmitter {
 	async _fetchSessions() {
 		try {
 			const token = await getAccessToken();
-			const newSessions = await getLocationsToday(token, this.login);
-			const sessionsArray = newSessions || [];
+			const rawSessions = await getLocationsToday(token, this.login);
+			const sessionsArray = rawSessions || [];
 			const checkTime = new Date();
 
-			// Vérifier s'il y a un changement (ou si c'est la première fois)
-			const isFirstFetch = this._sessions.length === 0 && this._lastCheckTime === null;
-			const hasChanged = isFirstFetch || this._hasSessionsChanged(sessionsArray);
+			// Transformer les sessions pour ne garder que les infos utiles
+			const transformedSessions = sessionsArray.map((session) => ({
+				begin_at: session.begin_at,
+				end_at: session.end_at,
+				id: session.id,
+				host: session.host,
+				user: {
+					id: session.user?.id,
+					login: session.user?.login,
+				},
+			}));
 
-			// Mettre à jour les sessions
-			this._sessions = sessionsArray;
+			// Calculer le total
+			const totalSeconds = calculateTotalSeconds(sessionsArray, new Date());
+			const totalLogtime = formatDuration(totalSeconds);
+
+			// Créer l'objet sessions avec toutes les infos utiles
+			const newSessionsData = {
+				sessions: transformedSessions,
+				totalLogtime,
+				totalSeconds,
+				lastCheckTime: checkTime,
+			};
+
+			// Vérifier s'il y a un changement (ou si c'est la première fois)
+			const isFirstFetch = this._sessions.sessions.length === 0 && this._lastCheckTime === null;
+			const hasChanged = isFirstFetch || this._hasSessionsChanged(newSessionsData);
+
+			// Mettre à jour les sessions avec toutes les infos utiles
+			this._sessions = newSessionsData;
 			this._lastCheckTime = checkTime;
 
 			// Vérifier le warning
@@ -100,16 +129,18 @@ export class SessionMonitor extends EventEmitter {
 	}
 
 	// Vérifier si les sessions ont changé
-	_hasSessionsChanged(newSessions) {
+	_hasSessionsChanged(newSessionsData) {
+		const newSessions = newSessionsData.sessions;
+		const oldSessions = this._sessions.sessions;
 		// Comparaison simple : nombre de sessions différent
-		if (this._sessions.length !== newSessions.length) {
+		if (oldSessions.length !== newSessions.length) {
 			return true;
 		}
 
 		// Comparaison plus approfondie : vérifier les IDs ou les timestamps
 		// On compare les begin_at et end_at pour détecter les changements
 		for (let i = 0; i < newSessions.length; i++) {
-			const oldSession = this._sessions[i];
+			const oldSession = oldSessions[i];
 			const newSession = newSessions[i];
 
 			if (!oldSession) return true;
@@ -125,20 +156,20 @@ export class SessionMonitor extends EventEmitter {
 
 	_checkWarning() {
 		// 1 session
-		if (this._sessions.length === 0) {
+		if (this._sessions.sessions.length === 0) {
 			this._warning = false;
 			return;
 		}
 
 		// Logtime < 7h
-		const totalSeconds = calculateTotalSeconds(this._sessions, new Date());
+		const totalSeconds = this._sessions.totalSeconds;
 		const sevenHoursInSeconds = 7 * 3600;
 		if (totalSeconds >= sevenHoursInSeconds) {
 			this._warning = false;
 			return;
 		}
 
-		const lastSession = this._sessions[this._sessions.length - 1];
+		const lastSession = this._sessions.sessions[this._sessions.sessions.length - 1];
 
 		const lastSessionEnd = new Date(lastSession.end_at);
 		const now = new Date();
