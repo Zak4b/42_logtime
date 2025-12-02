@@ -1,0 +1,10 @@
+{
+  "uuid": "42-logtime@local",
+  "name": "42 Logtime Display",
+  "description": "Affiche le temps de log 42 dans la barre supérieure",
+  "version": 1,
+  "shell-version": ["42", "43", "44", "45", "46"],
+  "url": ""
+}
+
+
