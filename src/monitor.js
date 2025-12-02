@@ -17,25 +17,25 @@ export class SessionMonitor extends EventEmitter {
 		this._lastCheckTime = null;
 		this._refreshInterval = null;
 		this._isRunning = false;
-		this._warning = false;
+		this._warning = null;
 	}
 
-	// Getter pour accéder aux sessions (retourne juste le tableau pour compatibilité)
 	get sessions() {
 		return this._sessions.sessions;
 	}
 
-	// Getter pour accéder à la dernière vérification
+	get sessionsData() {
+		return this._sessions;
+	}
+
 	get lastCheckTime() {
 		return this._lastCheckTime;
 	}
 
-	// Getter pour accéder au warning
 	get warning() {
 		return this._warning;
 	}
 
-	// Démarrer le monitoring
 	async start() {
 		if (this._isRunning) {
 			return;
@@ -44,10 +44,9 @@ export class SessionMonitor extends EventEmitter {
 		this._isRunning = true;
 
 		try {
-			// Requête initiale à l'instanciation
+			// Requête initiale
 			await this._fetchSessions();
 
-			// Re-fetch toutes les 60s
 			this._refreshInterval = setInterval(async () => {
 				await this._fetchSessions();
 			}, 60 * 1000);
@@ -57,7 +56,6 @@ export class SessionMonitor extends EventEmitter {
 		}
 	}
 
-	// Arrêter le monitoring
 	stop() {
 		if (this._refreshInterval) {
 			clearInterval(this._refreshInterval);
@@ -66,7 +64,6 @@ export class SessionMonitor extends EventEmitter {
 		this._isRunning = false;
 	}
 
-	// Méthode privée pour récupérer les sessions
 	async _fetchSessions() {
 		try {
 			const token = await getAccessToken();
@@ -74,7 +71,6 @@ export class SessionMonitor extends EventEmitter {
 			const sessionsArray = rawSessions || [];
 			const checkTime = new Date();
 
-			// Transformer les sessions pour ne garder que les infos utiles
 			const transformedSessions = sessionsArray.map((session) => ({
 				begin_at: session.begin_at,
 				end_at: session.end_at,
@@ -86,11 +82,9 @@ export class SessionMonitor extends EventEmitter {
 				},
 			}));
 
-			// Calculer le total
 			const totalSeconds = calculateTotalSeconds(sessionsArray, new Date());
 			const totalLogtime = formatDuration(totalSeconds);
 
-			// Créer l'objet sessions avec toutes les infos utiles
 			const newSessionsData = {
 				sessions: transformedSessions,
 				totalLogtime,
@@ -98,15 +92,12 @@ export class SessionMonitor extends EventEmitter {
 				lastCheckTime: checkTime,
 			};
 
-			// Vérifier s'il y a un changement (ou si c'est la première fois)
 			const isFirstFetch = this._sessions.sessions.length === 0 && this._lastCheckTime === null;
 			const hasChanged = isFirstFetch || this._hasSessionsChanged(newSessionsData);
 
-			// Mettre à jour les sessions avec toutes les infos utiles
 			this._sessions = newSessionsData;
 			this._lastCheckTime = checkTime;
 
-			// Vérifier le warning
 			const previousWarning = this._warning;
 			const previousTotalSeconds = this._sessions.totalSeconds;
 			this._checkWarning();
@@ -119,18 +110,17 @@ export class SessionMonitor extends EventEmitter {
 				});
 
 				// Envoyer une notification si warning activé
-				if (this._warning && this._sessions.sessions.length > 0) {
+				if (this._warning !== null && this._sessions.sessions.length > 0) {
 					const lastSession = this._sessions.sessions[this._sessions.sessions.length - 1];
 					const lastSessionEnd = new Date(lastSession.end_at);
 					sendWarningNotification(this.login, this._sessions.totalSeconds, this._sessions.totalLogtime, lastSessionEnd).catch((err) => console.error("Erreur notification:", err));
 				}
 			}
 
-			if (!previousWarning && previousTotalSeconds < 7 * 3600 && this._sessions.totalSeconds >= 7 * 3600) {
+			if (previousWarning === null && previousTotalSeconds < 7 * 3600 && this._sessions.totalSeconds >= 7 * 3600) {
 				sendSuccessNotification(this.login, this._sessions.totalLogtime).catch((err) => console.error("Erreur notification:", err));
 			}
 
-			// Émettre l'événement de changement (toujours pour mettre à jour la date de vérification)
 			this.emit("change", {
 				sessions: this._sessions,
 				lastCheckTime: this._lastCheckTime,
@@ -141,24 +131,19 @@ export class SessionMonitor extends EventEmitter {
 		}
 	}
 
-	// Vérifier si les sessions ont changé
 	_hasSessionsChanged(newSessionsData) {
 		const newSessions = newSessionsData.sessions;
 		const oldSessions = this._sessions.sessions;
-		// Comparaison simple : nombre de sessions différent
 		if (oldSessions.length !== newSessions.length) {
 			return true;
 		}
 
-		// Comparaison plus approfondie : vérifier les IDs ou les timestamps
-		// On compare les begin_at et end_at pour détecter les changements
 		for (let i = 0; i < newSessions.length; i++) {
 			const oldSession = oldSessions[i];
 			const newSession = newSessions[i];
 
 			if (!oldSession) return true;
 
-			// Comparer les propriétés importantes
 			if (oldSession.begin_at !== newSession.begin_at || oldSession.end_at !== newSession.end_at || oldSession.host !== newSession.host) {
 				return true;
 			}
@@ -168,27 +153,41 @@ export class SessionMonitor extends EventEmitter {
 	}
 
 	_checkWarning() {
-		// 1 session
+		// Pas de session
 		if (this._sessions.sessions.length === 0) {
-			this._warning = false;
+			this._warning = null;
 			return;
 		}
 
-		// Logtime < 7h
+		// Logtime >= 7h : pas d'alerte
 		const totalSeconds = this._sessions.totalSeconds;
 		const sevenHoursInSeconds = 7 * 3600;
 		if (totalSeconds >= sevenHoursInSeconds) {
-			this._warning = false;
+			this._warning = null;
 			return;
 		}
 
 		const lastSession = this._sessions.sessions[this._sessions.sessions.length - 1];
 
+		// Si la dernière session n'est pas terminée, pas d'alerte
+		if (!lastSession.end_at) {
+			this._warning = null;
+			return;
+		}
+
 		const lastSessionEnd = new Date(lastSession.end_at);
 		const now = new Date();
-		const minutesSinceLastSession = (now - lastSessionEnd) / 1000 / 60; // en minutes
+		const minutesSinceLastSession = Math.floor((now - lastSessionEnd) / 1000 / 60); // en minutes
 		const fifteenMinutes = 15;
 
-		this._warning = minutesSinceLastSession >= fifteenMinutes;
+		if (minutesSinceLastSession >= fifteenMinutes) {
+			const hours = Math.floor(totalSeconds / 3600);
+			const minutes = Math.floor((totalSeconds % 3600) / 60);
+			this._warning = {
+				message: `Logtime insuffisant (${hours}h ${minutes}m) et inactivité depuis ${minutesSinceLastSession} minutes. Objectif: 7h minimum.`,
+			};
+		} else {
+			this._warning = null;
+		}
 	}
 }

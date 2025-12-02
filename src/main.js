@@ -4,17 +4,17 @@ import { runServerMode } from "./server.js";
 import minimist from "minimist";
 
 const args = minimist(process.argv.slice(2), {
-	boolean: ["server"], // --server est un flag booléen
+	boolean: ["server"],
 	default: {
 		server: false,
 	},
 });
 
-const login = args._[0] || USER_LOGIN; // Premier argument positionnel
-const serverMode = args.server; // true si --server présent
+const login = args._[0] || USER_LOGIN;
+const serverMode = args.server;
 
 if (!login) {
-	console.error("❌ Erreur : Aucun login fourni. Utilisez 'npm start <login>' ou configurez USER_LOGIN dans le fichier .env");
+	console.error("Use 'npm start <login>' or set USER_LOGIN in the .env file");
 	process.exit(1);
 }
 

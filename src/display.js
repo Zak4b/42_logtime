@@ -1,21 +1,19 @@
 import readline from "readline";
-import { formatDuration, formatTime, calculateTotalSeconds } from "./utils.js";
+import { formatDuration, formatTime, calculateTotalSeconds, getPauseInfo } from "./utils.js";
 
-// Affiche les sessions avec header, sessions (ou message si vide), et logtime
 export function renderSessions(locations, lastCheckTime = new Date(), login = null) {
-	// Header
 	if (login) {
 		console.log(`👤 Login : ${login}`);
 	}
 	const timestamp = formatTime(lastCheckTime, true);
 	console.log(`🕐 Dernière vérification : ${timestamp}`);
 
-	// Sessions ou message si vide
 	if (!locations || locations.length === 0) {
 		console.log("❌ Aucune session trouvée pour aujourd'hui.");
 	} else {
 		// Trier les sessions par begin_at pour s'assurer qu'elles sont dans l'ordre chronologique
 		const sortedLocations = [...locations].sort((a, b) => new Date(a.begin_at) - new Date(b.begin_at));
+		const total = calculateTotalSeconds(locations, new Date());
 
 		for (let i = 0; i < sortedLocations.length; i++) {
 			const loc = sortedLocations[i];
@@ -29,28 +27,13 @@ export function renderSessions(locations, lastCheckTime = new Date(), login = nu
 
 			console.log(`Poste: ${loc.host} | ${formatTime(loc.begin_at)} -> ${end} (${duration})`);
 
-			// Afficher la pause entre les sessions (sauf pour la dernière session)
-			if (i < sortedLocations.length - 1) {
-				// On ne peut calculer la pause que si la session actuelle est terminée
-				if (loc.end_at) {
-					const currentEnd = new Date(loc.end_at);
-					const nextBegin = new Date(sortedLocations[i + 1].begin_at);
-					const pauseSeconds = (nextBegin - currentEnd) / 1000;
-
-					if (pauseSeconds > 0) {
-						console.log(`   ⏸️  Pause : ${formatDuration(pauseSeconds)}`);
-					} else if (pauseSeconds < 0) {
-						// Sessions qui se chevauchent (ne devrait pas arriver normalement)
-						console.log(`   ⚠️  Chevauchement détecté`);
-					}
-					// Si pauseSeconds === 0, pas de pause à afficher
-				}
-				// Si la session actuelle n'est pas terminée, on n'affiche pas de pause
+			const pauseInfo = getPauseInfo(i, sortedLocations, total);
+			if (pauseInfo) {
+				console.log(`   ⏸️  ${pauseInfo.label} : ${pauseInfo.formatted}`);
 			}
 		}
 	}
 
-	// Logtime
 	console.log("-".repeat(40));
 	const total = locations && locations.length > 0 ? calculateTotalSeconds(locations, new Date()) : 0;
 	console.log(`⏱️  Total Logtime : ${formatDuration(total)}`);
@@ -63,6 +46,6 @@ export function clearLastLine() {
 		readline.clearLine(process.stdout, 0);
 		readline.cursorTo(process.stdout, 0);
 	} catch (e) {
-		// si l'opération échoue, ignore
+		// ignore
 	}
 }

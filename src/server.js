@@ -1,6 +1,6 @@
 import http from "http";
 import { SessionMonitor } from "./monitor.js";
-import { calculateTotalSeconds, formatDuration } from "./utils.js";
+import { getPauseInfo } from "./utils.js";
 
 export async function runServerMode(login) {
 	const monitor = new SessionMonitor(login);
@@ -12,16 +12,25 @@ export async function runServerMode(login) {
 			return;
 		}
 
-		// Préparer les données
-		const sessions = monitor.sessions;
-		const totalSeconds = calculateTotalSeconds(sessions, new Date());
+		const sessionsData = monitor.sessionsData;
+		const sessions = sessionsData.sessions;
+
+		// Calculer la pause en cours (dernière session si applicable)
+		let currentPause = null;
+		if (sessions.length > 0) {
+			// Trier les sessions pour le calcul
+			const sortedSessions = [...sessions].sort((a, b) => new Date(a.begin_at) - new Date(b.begin_at));
+			currentPause = getPauseInfo(sortedSessions.length - 1, sortedSessions, sessionsData.totalSeconds);
+		}
+
 		const data = {
 			login,
 			sessions,
-			totalLogtime: formatDuration(totalSeconds),
-			totalSeconds,
-			lastCheckTime: monitor.lastCheckTime,
+			totalLogtime: sessionsData.totalLogtime,
+			totalSeconds: sessionsData.totalSeconds,
+			lastCheckTime: sessionsData.lastCheckTime,
 			warning: monitor.warning,
+			currentPause,
 		};
 
 		// Envoyer la réponse JSON

@@ -35,3 +35,46 @@ export function formatTime(date, includeSeconds = false) {
 
 	return dateObj.toLocaleTimeString([], options);
 }
+
+/**
+ * Calcule les informations de pause après une session
+ * @param {number} index - L'index de la session dans le tableau trié
+ * @param {Array} sortedSessions - Toutes les sessions triées par begin_at
+ * @param {number} totalSeconds - Le total de logtime en secondes
+ * @returns {Object|null} - Objet avec {seconds, formatted, label, isOngoing} ou null si pas de pause à afficher
+ */
+export function getPauseInfo(index, sortedSessions, totalSeconds) {
+	const session = sortedSessions[index];
+	if (!session) {
+		return null;
+	}
+
+	// La session doit être terminée pour avoir une pause
+	if (!session.end_at) {
+		return null;
+	}
+
+	const currentEnd = new Date(session.end_at);
+	const nextBegin = sortedSessions[index + 1] ? new Date(sortedSessions[index + 1].begin_at) : new Date();
+	const pauseSeconds = (nextBegin - currentEnd) / 1000;
+
+	if (index === sortedSessions.length - 1) {
+		if (totalSeconds >= 7 * 3600) {
+			return null; // Ne pas afficher si logtime >= 7h
+		}
+	}
+
+	if (pauseSeconds <= 0) {
+		return null;
+	}
+
+	const isOngoing = index === sortedSessions.length - 1;
+	const label = isOngoing ? "Pause en cours" : "Pause";
+
+	return {
+		seconds: pauseSeconds,
+		formatted: formatDuration(pauseSeconds),
+		label,
+		isOngoing,
+	};
+}
