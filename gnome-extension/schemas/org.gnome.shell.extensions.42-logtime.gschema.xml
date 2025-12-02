@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="42-logtime">
+  <schema id="org.gnome.shell.extensions.42-logtime" path="/org/gnome/shell/extensions/42-logtime/">
+    <key name="display-mode" type="s">
+      <default>'logtime'</default>
+      <summary>Mode d'affichage</summary>
+      <description>Mode d'affichage: 'logtime' pour le temps total, 'remaining' pour le temps restant</description>
+    </key>
+    <key name="show-departure-time" type="b">
+      <default>false</default>
+      <summary>Afficher l'heure de départ</summary>
+      <description>Afficher l'heure à laquelle vous pouvez partir pour atteindre 7h</description>
+    </key>
+  </schema>
+</schemalist>
+

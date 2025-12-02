@@ -4,7 +4,8 @@
   "description": "Affiche le temps de log 42 dans la barre supérieure",
   "version": 1,
   "shell-version": ["42", "43", "44", "45", "46"],
-  "url": ""
+  "url": "",
+  "settings-schema": "org.gnome.shell.extensions.42-logtime"
 }
 
 

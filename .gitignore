@@ -1,3 +1,6 @@
 node_modules/
 .env
 
+# Fichiers générés GNOME Shell extension
+gnome-extension/schemas/gschemas.compiled
+
