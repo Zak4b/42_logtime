@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 import { getAccessToken } from "./auth.js";
 import { getLocationsToday } from "./api.js";
 import { calculateTotalSeconds, formatDuration } from "./utils.js";
+import { sendWarningNotification, sendSuccessNotification } from "./notifications.js";
 
 export class SessionMonitor extends EventEmitter {
 	constructor(login) {
@@ -107,6 +108,7 @@ export class SessionMonitor extends EventEmitter {
 
 			// Vérifier le warning
 			const previousWarning = this._warning;
+			const previousTotalSeconds = this._sessions.totalSeconds;
 			this._checkWarning();
 
 			// Émettre un événement warning si le statut a changé
@@ -115,6 +117,17 @@ export class SessionMonitor extends EventEmitter {
 					warning: this._warning,
 					sessions: this._sessions,
 				});
+
+				// Envoyer une notification si warning activé
+				if (this._warning && this._sessions.sessions.length > 0) {
+					const lastSession = this._sessions.sessions[this._sessions.sessions.length - 1];
+					const lastSessionEnd = new Date(lastSession.end_at);
+					sendWarningNotification(this.login, this._sessions.totalSeconds, this._sessions.totalLogtime, lastSessionEnd).catch((err) => console.error("Erreur notification:", err));
+				}
+			}
+
+			if (!previousWarning && previousTotalSeconds < 7 * 3600 && this._sessions.totalSeconds >= 7 * 3600) {
+				sendSuccessNotification(this.login, this._sessions.totalLogtime).catch((err) => console.error("Erreur notification:", err));
 			}
 
 			// Émettre l'événement de changement (toujours pour mettre à jour la date de vérification)

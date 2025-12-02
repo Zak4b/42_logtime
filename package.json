@@ -5,7 +5,8 @@
 	"main": "main.js",
 	"scripts": {
 		"start": "node src/main.js",
-		"server": "node src/main.js --server"
+		"server": "node src/main.js --server",
+		"test_notify": "node src/test_notify.js"
 	},
 	"author": "",
 	"license": "ISC",
