@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.42-logtime" path="/org/gnome/shell/extensions/42-logtime/">
+    
+    <!-- Mode d'affichage : logtime ou temps restant -->
+    <key name="display-mode" type="s">
+      <default>"logtime"</default>
+      <summary>Display mode</summary>
+      <description>Choose between displaying logtime or remaining time</description>
+      <choices>
+        <choice value="logtime"/>
+        <choice value="remaining"/>
+      </choices>
+    </key>
+    
+    <!-- Afficher l'heure de départ estimée -->
+    <key name="show-departure-time" type="b">
+      <default>false</default>
+      <summary>Show departure time</summary>
+      <description>Display the estimated departure time when 7 hours will be reached</description>
+    </key>
+    
+  </schema>
+</schemalist>
