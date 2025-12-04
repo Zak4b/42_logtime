@@ -6,6 +6,57 @@ const REQUIRED_HOURS = 7; // 7 heures requises
 const REQUIRED_SECONDS = REQUIRED_HOURS * 3600;
 
 /**
+ * Calcule le temps total de pause dans la journée
+ */
+export function calculateTotalPauseTime(sessions) {
+	if (!sessions || sessions.length === 0) {
+		return 0;
+	}
+
+	// Trier par begin_at croissant
+	const sortedSessions = [...sessions].sort((a, b) => {
+		const aTime = new Date(a.begin_at || a.begin).getTime();
+		const bTime = new Date(b.begin_at || b.begin).getTime();
+		return aTime - bTime;
+	});
+
+	let totalPauseSeconds = 0;
+
+	// Calculer les pauses entre les sessions
+	for (let i = 0; i < sortedSessions.length - 1; i++) {
+		const currentSession = sortedSessions[i];
+		const nextSession = sortedSessions[i + 1];
+
+		const currentEndTime = currentSession.end_at || currentSession.end;
+		if (currentEndTime) {
+			const currentEnd = new Date(currentEndTime);
+			const nextBegin = new Date(nextSession.begin_at || nextSession.begin);
+			const pauseSeconds = (nextBegin.getTime() - currentEnd.getTime()) / 1000;
+
+			if (pauseSeconds > 0) {
+				totalPauseSeconds += pauseSeconds;
+			}
+		}
+	}
+
+	// Ajouter la pause en cours si la dernière session est terminée
+	const lastSession = sortedSessions[sortedSessions.length - 1];
+	if (lastSession) {
+		const lastEndTime = lastSession.end_at || lastSession.end;
+		if (lastEndTime) {
+			const currentEnd = new Date(lastEndTime);
+			const now = new Date();
+			const pauseSeconds = (now.getTime() - currentEnd.getTime()) / 1000;
+			if (pauseSeconds > 0) {
+				totalPauseSeconds += pauseSeconds;
+			}
+		}
+	}
+
+	return totalPauseSeconds;
+}
+
+/**
  * Calcule le temps total des sessions (en secondes)
  */
 export function calculateTotalSeconds(sessions, now) {

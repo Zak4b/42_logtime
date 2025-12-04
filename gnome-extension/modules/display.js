@@ -1,12 +1,12 @@
 // Logique d'affichage et formatage
 
 import GLib from "gi://GLib";
-import { calculateTotalSeconds, formatDuration, calculateRemainingTime, calculateDepartureTime } from "./utils.js";
+import { calculateTotalSeconds, formatDuration, calculateRemainingTime, calculateDepartureTime, calculateTotalPauseTime } from "./utils.js";
 
 /**
- * Formate le temps de pause
+ * Formate le temps de pause avec indicateur de validation
  */
-function formatPause(pauseSeconds) {
+function formatPause(pauseSeconds, totalDailyPause) {
 	const pauseHours = Math.floor(pauseSeconds / 3600);
 	const pauseMinutes = Math.floor((pauseSeconds % 3600) / 60);
 	const pauseSecs = Math.floor(pauseSeconds % 60);
@@ -15,7 +15,15 @@ function formatPause(pauseSeconds) {
 	const pauseMinutesStr = String(pauseMinutes).padStart(2, "0");
 	const pauseSecsStr = String(pauseSecs).padStart(2, "0");
 
-	return `${pauseHoursStr}h ${pauseMinutesStr}m ${pauseSecsStr}s`;
+	const timeStr = `${pauseHoursStr}h ${pauseMinutesStr}m ${pauseSecsStr}s`;
+	
+	// Vérifier si les 20 minutes de pause minimum sont atteintes
+	const REQUIRED_PAUSE_SECONDS = 20 * 60; // 20 minutes
+	if (totalDailyPause >= REQUIRED_PAUSE_SECONDS) {
+		return `✓ ${timeStr}`; // Pause validée
+	} else {
+		return `⏳ ${timeStr}`; // Pause en attente (rappel de faire une pause)
+	}
 }
 
 /**
@@ -52,17 +60,31 @@ export function formatDisplayText(sessions, currentPause, pauseStartTime, displa
 		if (remainingSeconds > 0) {
 			formattedTime = "Reste: " + formatDuration(remainingSeconds);
 		} else {
-			formattedTime = "✓ 7h atteint";
+			formattedTime = "✅ 7h atteint";
 		}
 	} else {
 		// Mode : Logtime (par défaut)
 		formattedTime = formatDuration(totalSeconds);
+	}
 
-		// Ajouter l'indicateur de pause si currentPause n'est pas null
-		const pauseSeconds = getCurrentPauseSeconds(currentPause, pauseStartTime);
-		if (pauseSeconds !== null) {
-			const formattedPause = formatPause(pauseSeconds);
-			formattedTime = formattedTime + " ⏸️ " + formattedPause;
+	// Calculer le temps total de pause de la journée (toujours afficher)
+	const totalDailyPause = calculateTotalPauseTime(sessions);
+	const REQUIRED_PAUSE_SECONDS = 20 * 60; // 20 minutes
+	
+	// Ajouter l'indicateur de pause dans tous les modes
+	const pauseSeconds = getCurrentPauseSeconds(currentPause, pauseStartTime);
+	if (pauseSeconds !== null && currentPause) {
+		// Il y a une pause en cours
+		const formattedPause = formatPause(pauseSeconds, totalDailyPause);
+		formattedTime = formattedTime + " ⏸️ " + formattedPause;
+	} else if (totalSeconds > 0) {
+		// Pas de pause en cours, afficher le statut de validation
+		if (totalDailyPause >= REQUIRED_PAUSE_SECONDS) {
+			// Les 20 minutes sont atteintes
+			formattedTime = formattedTime + " | ✅ Pause OK";
+		} else {
+			// Les 20 minutes ne sont pas encore atteintes
+			formattedTime = formattedTime + " | ⏳ Pause requise";
 		}
 	}
 
@@ -77,7 +99,7 @@ export function formatDisplayText(sessions, currentPause, pauseStartTime, displa
 
 			formattedTime = formattedTime + " | Départ: " + depHours + ":" + depMinutes + ":" + depSecs;
 		} else {
-			formattedTime = formattedTime + " | ✓ Peut partir";
+			formattedTime = formattedTime + " | ✅ Peut partir";
 		}
 	}
 

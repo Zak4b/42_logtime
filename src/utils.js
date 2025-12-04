@@ -37,11 +37,48 @@ export function formatTime(date, includeSeconds = false) {
 }
 
 /**
+ * Calcule le temps total de pause dans la journée
+ * @param {Array} sortedSessions - Toutes les sessions triées par begin_at
+ * @returns {number} - Temps total de pause en secondes
+ */
+export function calculateTotalPauseTime(sortedSessions) {
+	let totalPauseSeconds = 0;
+
+	for (let i = 0; i < sortedSessions.length - 1; i++) {
+		const currentSession = sortedSessions[i];
+		const nextSession = sortedSessions[i + 1];
+
+		if (currentSession.end_at) {
+			const currentEnd = new Date(currentSession.end_at);
+			const nextBegin = new Date(nextSession.begin_at);
+			const pauseSeconds = (nextBegin - currentEnd) / 1000;
+
+			if (pauseSeconds > 0) {
+				totalPauseSeconds += pauseSeconds;
+			}
+		}
+	}
+
+	// Ajouter la pause en cours si la dernière session est terminée
+	const lastSession = sortedSessions[sortedSessions.length - 1];
+	if (lastSession && lastSession.end_at) {
+		const currentEnd = new Date(lastSession.end_at);
+		const now = new Date();
+		const pauseSeconds = (now - currentEnd) / 1000;
+		if (pauseSeconds > 0) {
+			totalPauseSeconds += pauseSeconds;
+		}
+	}
+
+	return totalPauseSeconds;
+}
+
+/**
  * Calcule les informations de pause après une session
  * @param {number} index - L'index de la session dans le tableau trié
  * @param {Array} sortedSessions - Toutes les sessions triées par begin_at
  * @param {number} totalSeconds - Le total de logtime en secondes
- * @returns {Object|null} - Objet avec {seconds, formatted, label, isOngoing} ou null si pas de pause à afficher
+ * @returns {Object|null} - Objet avec {seconds, formatted, label, isOngoing, totalDailyPause} ou null si pas de pause à afficher
  */
 export function getPauseInfo(index, sortedSessions, totalSeconds) {
 	const session = sortedSessions[index];
@@ -70,11 +107,15 @@ export function getPauseInfo(index, sortedSessions, totalSeconds) {
 
 	const isOngoing = index === sortedSessions.length - 1;
 	const label = isOngoing ? "Pause en cours" : "Pause";
+	
+	// Calculer le temps total de pause de la journée
+	const totalDailyPause = calculateTotalPauseTime(sortedSessions);
 
 	return {
 		seconds: pauseSeconds,
 		formatted: formatDuration(pauseSeconds),
 		label,
 		isOngoing,
+		totalDailyPause, // Ajout du temps total de pause
 	};
 }
